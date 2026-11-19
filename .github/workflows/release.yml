@@ -1,0 +1,26 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BIN: cosmic-bundle-validator-x86_64-linux
+    steps:
+      - uses: actions/checkout@v4
+      # musl-tools builds the C parts (bzip2, lzma, zstd, ring) into one static binary
+      # that runs on any x86_64 Linux, whatever its glibc.
+      - run: sudo apt-get update && sudo apt-get install --yes musl-tools
+      - run: cargo test
+      - run: cargo build --release --locked --target x86_64-unknown-linux-musl
+      - run: |
+          cp target/x86_64-unknown-linux-musl/release/cosmic-bundle-validator "$BIN"
+          sha256sum "$BIN" > "$BIN.sha256"
+          gh release create "$GITHUB_REF_NAME" "$BIN" "$BIN.sha256" --title "$GITHUB_REF_NAME" --generate-notes
