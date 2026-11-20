@@ -82,7 +82,7 @@ dependencies = [
 [[package]]
 name = "appstream"
 version = "0.2.2"
-source = "git+https://github.com/jackpot51/appstream#c14084db5c0dce7b56830b705c9f3cf6f9603469"
+source = "git+https://github.com/jackpot51/appstream#9ff6496feb75779c16bdfaf0cc04daba466f9dc7"
 dependencies = [
  "chrono",
  "serde",
@@ -534,7 +534,7 @@ dependencies = [
 
 [[package]]
 name = "cosmic-bundle-validator"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "appstream",
  "base64 0.23.1",
