@@ -9,9 +9,8 @@ use cosmic_theme::palette::Srgba;
 use cosmic_theme_bundle_config::{Bundle, Part, Store};
 use image::imageops::FilterType;
 
-// sizes from cosmic-settings.
-const W: f32 = 204.0;
-const H: f32 = 138.0;
+const W: f32 = 160.0;
+const H: f32 = W;
 const BAND_H: f32 = 44.0;
 const LINE_W: f32 = 80.0;
 const LINE_H: f32 = 4.0;
