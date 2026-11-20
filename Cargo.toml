@@ -1,6 +1,6 @@
 [package]
 name = "cosmic-bundle-validator"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 description = "Validate COSMIC theme bundles"
 license = "GPL-3.0-only"
@@ -9,7 +9,9 @@ license = "GPL-3.0-only"
 cosmic-theme-bundle-config = { git = "https://github.com/pop-os/cosmic-settings", rev = "aaaf4e03816f20ba9c70e8428ac693b30fd76f59" }
 appstream = { git = "https://github.com/jackpot51/appstream" }
 cosmic-theme = { git = "https://github.com/pop-os/libcosmic" }
+sha2 = "0.10"
 tempfile = "3"
+zip = "9"
 
 [profile.release]
 lto = "thin"
