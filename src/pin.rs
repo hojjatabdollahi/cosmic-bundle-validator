@@ -7,6 +7,7 @@ pub struct Pin {
     pub id: String,
     pub url: String,
     pub commit: String,
+    pub path: Option<String>,
     pub developer: Element,
     pub project_license: Element,
     pub metadata_license: Option<Element>,
@@ -62,6 +63,15 @@ impl Pin {
             ));
         }
 
+        let path = source.attributes.get("path").cloned();
+        if let Some(path) = &path
+            && !is_folder(path)
+        {
+            return Err(format!(
+                "source path must be a folder inside the repo, like dark or themes/dark: {path:?}"
+            ));
+        }
+
         let developer = root
             .get_child("developer")
             .filter(|d| d.get_child("name").and_then(text).is_some())
@@ -82,11 +92,24 @@ impl Pin {
             id,
             url,
             commit,
+            path,
             developer,
             project_license,
             metadata_license,
         })
     }
+}
+
+/// no leading slash, no `.` or `..`
+fn is_folder(path: &str) -> bool {
+    path.split('/').all(|part| {
+        !part.is_empty()
+            && part != "."
+            && part != ".."
+            && part
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || "._-".contains(c))
+    })
 }
 
 fn text(element: &Element) -> Option<String> {
