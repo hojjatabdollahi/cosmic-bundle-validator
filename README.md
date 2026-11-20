@@ -5,6 +5,7 @@ Checks a COSMIC theme bundle with the same importer COSMIC Settings uses.
 ```
 cosmic-bundle-validator validate <bundle.zip>
 cosmic-bundle-validator build <id.xml> [--out <dir>]
+cosmic-bundle-validator catalog <bundle-dir> <out-dir>
 ```
 
 `validate` imports the zip into a throwaway home, exactly as `cosmic-settings` would, and fails with Settings' own error if the import would.
