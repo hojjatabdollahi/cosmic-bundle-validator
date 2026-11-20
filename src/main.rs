@@ -9,7 +9,7 @@ mod source;
 const USAGE: &str = "usage:
   cosmic-bundle-validator validate <bundle.zip>
   cosmic-bundle-validator build <bundle/ID/ID.xml> [--out <dir>]
-  cosmic-bundle-validator catalog <bundle-dir> <out-dir>";
+  cosmic-bundle-validator catalog <bundle-dir> <out-dir> <base-url>";
 
 fn main() -> ExitCode {
     let args: Vec<PathBuf> = std::env::args_os().skip(1).map(PathBuf::from).collect();
@@ -21,7 +21,12 @@ fn main() -> ExitCode {
         [cmd, pin, flag, out] if *cmd == Path::new("build") && *flag == Path::new("--out") => {
             build(pin, out)
         }
-        [cmd, bundles, out] if *cmd == Path::new("catalog") => catalog::write(bundles, out),
+        [cmd, bundles, out, base_url]
+            if *cmd == Path::new("catalog")
+                && let Some(base_url_str) = base_url.to_str() =>
+        {
+            catalog::write(bundles, out, base_url_str)
+        }
         _ => {
             eprintln!("{USAGE}");
             return ExitCode::from(2);

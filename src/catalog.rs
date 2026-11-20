@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 
 use crate::pin::Pin;
 
-pub fn write(bundles: &Path, out: &Path) -> Result<(), String> {
+pub fn write(bundles: &Path, out: &Path, base_url: &str) -> Result<(), String> {
     let mut pins: Vec<PathBuf> = fs::read_dir(bundles)
         .map_err(|err| format!("{}: {err}", bundles.display()))?
         .filter_map(Result::ok)
@@ -30,7 +30,7 @@ pub fn write(bundles: &Path, out: &Path) -> Result<(), String> {
         };
         catalog
             .children
-            .push(XMLNode::Element(component(&pin, &bytes)?));
+            .push(XMLNode::Element(component(&pin, &bytes, base_url)?));
         println!("catalog    {}", pin.id);
     }
 
@@ -42,7 +42,7 @@ pub fn write(bundles: &Path, out: &Path) -> Result<(), String> {
     fs::write(&path, xml).map_err(|err| format!("{}: {err}", path.display()))
 }
 
-fn component(pin: &Pin, zip: &[u8]) -> Result<Element, String> {
+fn component(pin: &Pin, zip: &[u8], base_url: &str) -> Result<Element, String> {
     let name = format!("{}.metainfo.xml", pin.id);
     let mut archive =
         zip::ZipArchive::new(Cursor::new(zip)).map_err(|err| format!("{}: {err}", pin.id))?;
@@ -72,7 +72,7 @@ fn component(pin: &Pin, zip: &[u8]) -> Result<Element, String> {
     artifact.attributes.insert("type".into(), "binary".into());
     artifact.children.push(XMLNode::Element(text(
         "location",
-        &format!("{}.zip", pin.id),
+        &format!("{}/{}.zip", base_url, pin.id),
     )));
     let mut checksum = text("checksum", &format!("{:x}", Sha256::digest(zip)));
     checksum.attributes.insert("type".into(), "sha256".into());
