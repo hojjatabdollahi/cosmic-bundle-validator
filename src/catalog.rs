@@ -6,6 +6,9 @@ use appstream::xmltree::{Element, EmitterConfig, XMLNode};
 use sha2::{Digest, Sha256};
 
 use crate::pin::Pin;
+
+/// What every theme bundle in the catalog provides.
+const PROVIDES_ID: &str = "com.system76.CosmicThemeBundle";
 use crate::thumbnail::{HEIGHT, WIDTH};
 
 pub fn write(bundles: &Path, out: &Path, base_url: &str) -> Result<(), String> {
@@ -84,6 +87,21 @@ fn component(pin: &Pin, zip: &[u8], base_url: &str) -> Result<Element, String> {
     let licenses = [Some(&pin.project_license), pin.metadata_license.as_ref()];
     for license in licenses.into_iter().flatten() {
         component.children.push(XMLNode::Element(license.clone()));
+    }
+
+    if component.get_child("provides").is_none() {
+        component
+            .children
+            .push(XMLNode::Element(Element::new("provides")));
+    }
+    let provides = component.get_mut_child("provides").expect("added above");
+    let id = text("id", PROVIDES_ID);
+    if !provides
+        .children
+        .iter()
+        .any(|node| node.as_element() == Some(&id))
+    {
+        provides.children.push(XMLNode::Element(id));
     }
 
     let mut artifact = Element::new("artifact");
