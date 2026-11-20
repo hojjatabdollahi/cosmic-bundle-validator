@@ -8,9 +8,14 @@ license = "GPL-3.0-only"
 [dependencies]
 cosmic-theme-bundle-config = { git = "https://github.com/pop-os/cosmic-settings", rev = "aaaf4e03816f20ba9c70e8428ac693b30fd76f59" }
 appstream = { git = "https://github.com/jackpot51/appstream" }
+base64 = "0.23"
+cosmic-bg-config = { git = "https://github.com/pop-os/cosmic-bg" }
+cosmic-config = { git = "https://github.com/pop-os/libcosmic" }
 cosmic-theme = { git = "https://github.com/pop-os/libcosmic" }
+image = "0.25"
 sha2 = "0.10"
 tempfile = "3"
+walkdir = "2"
 zip = "9"
 
 [profile.release]
