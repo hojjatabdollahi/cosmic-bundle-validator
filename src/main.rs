@@ -46,10 +46,13 @@ fn build(pin: &Path, out: &Path) -> Result<(), String> {
     println!("pin        {} @ {} {}", pin.url, pin.commit, pin.id);
     std::fs::create_dir_all(out).map_err(|err| format!("{}: {err}", out.display()))?;
     let zip = out.join(format!("{}.zip", pin.id));
-    source::fetch(&pin, &zip)?;
-    println!("zip        {}", zip.display());
-    validate(&zip).inspect_err(|_| {
-        // don't leave invalid zip files around
+    let result = source::fetch(&pin, &zip).and_then(|()| {
+        println!("zip        {}", zip.display());
+        validate(&zip)
+    });
+    // Don't leave a partial or invalid zip around
+    if result.is_err() {
         let _ = std::fs::remove_file(&zip);
-    })
+    }
+    result
 }
