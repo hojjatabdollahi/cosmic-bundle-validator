@@ -5,6 +5,7 @@ mod catalog;
 mod import;
 mod pin;
 mod source;
+mod thumbnail;
 
 const USAGE: &str = "usage:
   cosmic-bundle-validator validate <bundle.zip>
@@ -51,13 +52,19 @@ fn build(pin: &Path, out: &Path) -> Result<(), String> {
     println!("pin        {} @ {} {}", pin.url, pin.commit, pin.id);
     std::fs::create_dir_all(out).map_err(|err| format!("{}: {err}", out.display()))?;
     let zip = out.join(format!("{}.zip", pin.id));
+    let icon = out.join(format!("{}.svg", pin.id));
     let result = source::fetch(&pin, &zip).and_then(|()| {
         println!("zip        {}", zip.display());
-        validate(&zip)
+        let imported = import::import(&zip)?;
+        imported.print();
+        thumbnail::render(&imported.store, &imported.bundle, &imported.theme, &icon)?;
+        println!("icon       {}", icon.display());
+        Ok(())
     });
     // Don't leave a partial or invalid zip around
     if result.is_err() {
         let _ = std::fs::remove_file(&zip);
+        let _ = std::fs::remove_file(&icon);
     }
     result
 }

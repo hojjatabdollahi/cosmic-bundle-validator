@@ -4,6 +4,7 @@ use cosmic_theme::Theme;
 use cosmic_theme_bundle_config::{Bundle, Store};
 
 pub struct Imported {
+    pub store: Store,
     pub bundle: Bundle,
     pub theme: Theme,
 }
@@ -34,7 +35,11 @@ pub fn import(zip: &Path) -> Result<Imported, String> {
     let theme = store
         .bundle_theme(&bundle.slug)
         .map_err(|err| err.to_string())?;
-    Ok(Imported { bundle, theme })
+    Ok(Imported {
+        store,
+        bundle,
+        theme,
+    })
 }
 
 impl Imported {

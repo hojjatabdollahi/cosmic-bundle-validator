@@ -6,6 +6,7 @@ use appstream::xmltree::{Element, EmitterConfig, XMLNode};
 use sha2::{Digest, Sha256};
 
 use crate::pin::Pin;
+use crate::thumbnail::{HEIGHT, WIDTH};
 
 pub fn write(bundles: &Path, out: &Path, base_url: &str) -> Result<(), String> {
     let mut pins: Vec<PathBuf> = fs::read_dir(bundles)
@@ -62,8 +63,17 @@ fn component(pin: &Pin, zip: &[u8], base_url: &str) -> Result<Element, String> {
     let mut component = Element::parse(meta.as_slice()).map_err(|err| format!("{name}: {err}"))?;
 
     component.children.retain(|node| {
-        !matches!(node, XMLNode::Element(e) if e.name == "developer" || e.name == "releases")
+        !matches!(node, XMLNode::Element(e) if ["developer", "releases", "icon"].contains(&e.name.as_str()))
     });
+    let mut icon = text("icon", &format!("{}/{}.svg", base_url, pin.id));
+    for (key, value) in [
+        ("type", "remote".to_owned()),
+        ("width", WIDTH.to_string()),
+        ("height", HEIGHT.to_string()),
+    ] {
+        icon.attributes.insert(key.into(), value);
+    }
+    component.children.push(XMLNode::Element(icon));
     component
         .children
         .push(XMLNode::Element(pin.developer.clone()));
