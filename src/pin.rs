@@ -7,7 +7,7 @@ pub struct Pin {
     pub id: String,
     pub url: String,
     pub commit: String,
-    pub developer: String,
+    pub developer: Element,
 }
 
 impl Pin {
@@ -62,7 +62,8 @@ impl Pin {
 
         let developer = root
             .get_child("developer")
-            .and_then(|d| text(d.get_child("name")?))
+            .filter(|d| d.get_child("name").and_then(text).is_some())
+            .cloned()
             .ok_or("needs <developer><name>")?;
 
         Ok(Self {
