@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::process::Command;
 
-use appstream::xmltree::Element;
+use appstream::xmltree::{Element, XMLNode};
 
 use crate::pin::Pin;
 
@@ -40,6 +40,7 @@ pub fn fetch(pin: &Pin, zip: &Path) -> Result<(), String> {
     if id.trim() != pin.id {
         return Err(format!("{metainfo} names a different id: {id}"));
     }
+    version(&meta).map_err(|err| format!("{metainfo}: {err}"))?;
 
     let names =
         String::from_utf8_lossy(&git(&["ls-tree", "--name-only", "FETCH_HEAD"])?).into_owned();
@@ -55,6 +56,36 @@ pub fn fetch(pin: &Pin, zip: &Path) -> Result<(), String> {
     args.extend(names.lines().filter(|name| is_packaged(name)));
     git(&args)?;
     Ok(())
+}
+
+pub fn version(meta: &Element) -> Result<String, String> {
+    let version = meta
+        .get_child("custom")
+        .into_iter()
+        .flat_map(|custom| &custom.children)
+        .find_map(|node| match node {
+            XMLNode::Element(e)
+                if e.attributes
+                    .get("key")
+                    .is_some_and(|k| k == "x-cosmic-version") =>
+            {
+                e.get_text().map(|t| t.trim().to_owned())
+            }
+            _ => None,
+        })
+        .unwrap_or_default();
+    if version.is_empty() {
+        return Err(r#"needs <value key="x-cosmic-version">1.0.0</value> in <custom>"#.into());
+    }
+    if !version
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || ".+~-_".contains(c))
+    {
+        return Err(format!(
+            "x-cosmic-version may only use letters, digits and . + ~ - _: {version:?}"
+        ));
+    }
+    Ok(version)
 }
 
 fn is_packaged(name: &str) -> bool {
