@@ -1,40 +1,66 @@
-use std::io::Read;
+use std::fs::File;
+use std::io::Write;
 use std::path::Path;
 use std::process::Command;
 
 use appstream::xmltree::{Element, XMLNode};
+use zip::write::SimpleFileOptions;
 
 use crate::pin::Pin;
 
 pub fn fetch(pin: &Pin, zip: &Path) -> Result<(), String> {
     let src = tempfile::tempdir().map_err(|err| err.to_string())?;
-    let git = |args: &[&str]| -> Result<Vec<u8>, String> {
+    let git = |args: &[&str]| -> Result<String, String> {
         let out = Command::new("git")
             .arg("-C")
             .arg(src.path())
             .args(args)
             // Fail instead of asking for credentials when a repo is private or gone.
             .env("GIT_TERMINAL_PROMPT", "0")
+            .env("TZ", "UTC")
             .output()
             .map_err(|err| format!("git: {err}"))?;
         if !out.status.success() {
-            return Err(format!(
-                "git {}: {}",
-                args[0],
-                String::from_utf8_lossy(&out.stderr).trim()
-            ));
+            let err = String::from_utf8_lossy(&out.stderr);
+            return Err(format!("git {}: {}", args[0], err.trim()));
         }
-        Ok(out.stdout)
+        Ok(String::from_utf8_lossy(&out.stdout).into_owned())
     };
 
-    git(&["init", "-q"])?;
-    // A named remote, so git-lfs knows where to download from.
-    git(&["remote", "add", "origin", &pin.url])?;
-    git(&["fetch", "-q", "--depth", "1", "origin", &pin.commit])?;
-
+    let folder = pin
+        .path
+        .as_ref()
+        .map(|path| format!("{path}/"))
+        .unwrap_or_default();
     let metainfo = format!("{}.metainfo.xml", pin.id);
-    let meta = git(&["show", &format!("FETCH_HEAD:{metainfo}")])
-        .map_err(|_| format!("the repo has no {metainfo} at its root"))?;
+    let wanted = [
+        format!("/{folder}{metainfo}"),
+        format!("/{folder}config/"),
+        format!("/{folder}data/"),
+    ];
+    git(&["init", "-q"])?;
+    git(&["remote", "add", "origin", &pin.url])?;
+    git(&[
+        "sparse-checkout",
+        "set",
+        "--no-cone",
+        &wanted[0],
+        &wanted[1],
+        &wanted[2],
+    ])?;
+    git(&[
+        "fetch",
+        "-q",
+        "--depth=1",
+        "--filter=blob:none",
+        "origin",
+        &pin.commit,
+    ])?;
+    git(&["checkout", "-q", "FETCH_HEAD"])?;
+    let bundle = src.path().join(&folder);
+
+    let meta = std::fs::read(bundle.join(&metainfo))
+        .map_err(|_| format!("the repo has no {folder}{metainfo}"))?;
     let meta = Element::parse(meta.as_slice()).map_err(|err| format!("{metainfo}: {err}"))?;
     let id = meta
         .get_child("id")
@@ -43,54 +69,61 @@ pub fn fetch(pin: &Pin, zip: &Path) -> Result<(), String> {
     if id.trim() != pin.id {
         return Err(format!("{metainfo} names a different id: {id}"));
     }
-
-    // Download LFS files before archiving, so git archive writes them instead of their pointers.
-    // Without git-lfs this is skipped, and the pointer check below fails the build instead.
-    if git(&["lfs", "ls-files", "--name-only", &pin.commit]).is_ok_and(|files| !files.is_empty()) {
-        git(&["lfs", "install", "--local"])?;
-        git(&["lfs", "fetch", "origin", &pin.commit])
-            .map_err(|err| format!("could not download the bundle's Git LFS files: {err}"))?;
-    }
     version(&meta).map_err(|err| format!("{metainfo}: {err}"))?;
 
-    let names =
-        String::from_utf8_lossy(&git(&["ls-tree", "--name-only", "FETCH_HEAD"])?).into_owned();
-    let zip = std::path::absolute(zip).map_err(|err| err.to_string())?;
-    let mut args = vec![
-        "archive",
-        "--format=zip",
-        "-o",
-        zip.to_str().ok_or("output path is not UTF-8")?,
-        "FETCH_HEAD",
-        &metainfo,
-    ];
-    args.extend(names.lines().filter(|name| is_packaged(name)));
-    git(&args)?;
-    no_lfs_pointers(&zip)
+    let time = git(&[
+        "log",
+        "-1",
+        "--format=%cd",
+        "--date=format-local:%Y %m %d %H %M %S",
+    ])?;
+    let time: Vec<u16> = time
+        .split_whitespace()
+        .filter_map(|n| n.parse().ok())
+        .collect();
+    let [y, mo, d, h, mi, s] = time[..] else {
+        return Err(format!("unreadable commit time: {time:?}"));
+    };
+    let time = zip::DateTime::from_date_and_time(y, mo as u8, d as u8, h as u8, mi as u8, s as u8)
+        .map_err(|err| format!("commit time: {err}"))?;
+    zip_folder(
+        &bundle,
+        zip,
+        SimpleFileOptions::default().last_modified_time(time),
+    )
 }
 
-/// An LFS file that was never downloaded is zipped as a small text pointer. The importer only
-/// copies files, so it would accept a wallpaper that is really a pointer.
-fn no_lfs_pointers(zip: &Path) -> Result<(), String> {
-    const POINTER: &[u8] = b"version https://git-lfs.github.com/spec/v1";
-    let file = std::fs::File::open(zip).map_err(|err| format!("{}: {err}", zip.display()))?;
-    let mut archive =
-        zip::ZipArchive::new(file).map_err(|err| format!("{}: {err}", zip.display()))?;
-    for i in 0..archive.len() {
-        let mut entry = archive.by_index(i).map_err(|err| err.to_string())?;
-        let name = entry.name().map_err(|err| err.to_string())?.into_owned();
-        let mut head = Vec::new();
-        entry
-            .by_ref()
-            .take(POINTER.len() as u64)
-            .read_to_end(&mut head)
-            .map_err(|err| format!("{name}: {err}"))?;
-        if head == POINTER {
+fn zip_folder(dir: &Path, zip: &Path, options: SimpleFileOptions) -> Result<(), String> {
+    const LFS_POINTER: &[u8] = b"version https://git-lfs.github.com/spec/v1";
+    let error = |err: &dyn std::fmt::Display| format!("{}: {err}", zip.display());
+
+    let mut writer = zip::ZipWriter::new(File::create(zip).map_err(|e| error(&e))?);
+    for entry in walkdir::WalkDir::new(dir).sort_by_file_name() {
+        let entry = entry.map_err(|e| error(&e))?;
+        let name = entry.path().strip_prefix(dir).map_err(|e| error(&e))?;
+        let name = name.to_str().ok_or("a file name is not UTF-8")?;
+        if name.is_empty() || name == ".git" || name.starts_with(".git/") {
+            continue;
+        }
+        if entry.path_is_symlink() {
+            return Err(format!(
+                "{name} is a symlink, which the importer does not accept"
+            ));
+        }
+        if entry.file_type().is_dir() {
+            writer.add_directory(name, options).map_err(|e| error(&e))?;
+            continue;
+        }
+        let bytes = std::fs::read(entry.path()).map_err(|e| error(&e))?;
+        if bytes.starts_with(LFS_POINTER) {
             return Err(format!(
                 "{name} is a Git LFS pointer, not the file; the LFS object could not be downloaded"
             ));
         }
+        writer.start_file(name, options).map_err(|e| error(&e))?;
+        writer.write_all(&bytes).map_err(|e| error(&e))?;
     }
+    writer.finish().map_err(|e| error(&e))?;
     Ok(())
 }
 
@@ -122,11 +155,4 @@ pub fn version(meta: &Element) -> Result<String, String> {
         ));
     }
     Ok(version)
-}
-
-fn is_packaged(name: &str) -> bool {
-    matches!(name, "config" | "data" | "LICENSE" | "LICENSES")
-        || ["LICENSE.", "COPYING", "NOTICE"]
-            .iter()
-            .any(|prefix| name.starts_with(prefix))
 }

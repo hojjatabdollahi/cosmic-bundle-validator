@@ -15,9 +15,14 @@ cosmic-bundle-validator catalog <bundle-dir> <out-dir>
 
 ```xml
 <bundle id="com.example.theme">
-  <source type="git" url="https://github.com/you/your-theme" commit="<full 40-char sha>"/>
+  <!-- path is optional, for repos that hold several bundles -->
+  <source type="git" url="https://github.com/you/your-theme" commit="<full 40-char sha>" path="dark"/>
   <developer id="io.github.you">
     <name>Your Name</name>
   </developer>
+  <!-- an SPDX expression, or Proprietary -->
+  <project_license>GPL-3.0-or-later</project_license>
+  <!-- optional -->
+  <metadata_license>CC0-1.0</metadata_license>
 </bundle>
 ```
