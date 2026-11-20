@@ -62,9 +62,13 @@ fn component(pin: &Pin, zip: &[u8], base_url: &str) -> Result<Element, String> {
         .map_err(|err| format!("{}: {name}: {err}", pin.id))?;
     let mut component = Element::parse(meta.as_slice()).map_err(|err| format!("{name}: {err}"))?;
 
-    component.children.retain(|node| {
-        !matches!(node, XMLNode::Element(e) if ["developer", "releases", "icon"].contains(&e.name.as_str()))
-    });
+    let replaced = |name: &str| {
+        ["developer", "releases", "icon", "project_license"].contains(&name)
+            || (name == "metadata_license" && pin.metadata_license.is_some())
+    };
+    component
+        .children
+        .retain(|node| !matches!(node, XMLNode::Element(e) if replaced(&e.name)));
     let mut icon = text("icon", &format!("{}/{}.svg", base_url, pin.id));
     for (key, value) in [
         ("type", "remote".to_owned()),
@@ -77,6 +81,10 @@ fn component(pin: &Pin, zip: &[u8], base_url: &str) -> Result<Element, String> {
     component
         .children
         .push(XMLNode::Element(pin.developer.clone()));
+    let licenses = [Some(&pin.project_license), pin.metadata_license.as_ref()];
+    for license in licenses.into_iter().flatten() {
+        component.children.push(XMLNode::Element(license.clone()));
+    }
 
     let mut artifact = Element::new("artifact");
     artifact.attributes.insert("type".into(), "binary".into());

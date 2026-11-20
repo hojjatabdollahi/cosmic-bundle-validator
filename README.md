@@ -19,5 +19,9 @@ cosmic-bundle-validator catalog <bundle-dir> <out-dir>
   <developer id="io.github.you">
     <name>Your Name</name>
   </developer>
+  <!-- an SPDX expression, or Proprietary -->
+  <project_license>GPL-3.0-or-later</project_license>
+  <!-- optional -->
+  <metadata_license>CC0-1.0</metadata_license>
 </bundle>
 ```

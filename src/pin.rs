@@ -8,6 +8,8 @@ pub struct Pin {
     pub url: String,
     pub commit: String,
     pub developer: Element,
+    pub project_license: Element,
+    pub metadata_license: Option<Element>,
 }
 
 impl Pin {
@@ -66,11 +68,23 @@ impl Pin {
             .cloned()
             .ok_or("needs <developer><name>")?;
 
+        let project_license = root
+            .get_child("project_license")
+            .filter(|e| text(e).is_some())
+            .cloned()
+            .ok_or("needs <project_license>, an SPDX expression or Proprietary")?;
+        let metadata_license = match root.get_child("metadata_license") {
+            Some(e) if text(e).is_none() => return Err("<metadata_license> is empty".into()),
+            license => license.cloned(),
+        };
+
         Ok(Self {
             id,
             url,
             commit,
             developer,
+            project_license,
+            metadata_license,
         })
     }
 }
