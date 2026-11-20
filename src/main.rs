@@ -45,5 +45,8 @@ fn build(pin: &Path, out: &Path) -> Result<(), String> {
     let zip = out.join(format!("{}.zip", pin.id));
     source::fetch(&pin, &zip)?;
     println!("zip        {}", zip.display());
-    validate(&zip)
+    validate(&zip).inspect_err(|_| {
+        // don't leave invalid zip files around
+        let _ = std::fs::remove_file(&zip);
+    })
 }
